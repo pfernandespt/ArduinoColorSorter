@@ -1,13 +1,10 @@
-/* Este programa foi desenvolvido por Paulo Fernandes no ambito do projeto de fim de cadeira para IEE.
- *  
+/*  
  *    Descrição: O seguinte codigo tem por objetivo através da utilização de um sensor de cor e de motores 
  *    stepper executar a separação de coisas de até 6 cores diferentes tendo por base valores padrão indicados.
  *    
  *    Universidade: UAveiro | Departamento: DETI | Curso: EEC | Ano: 2022 | Cadeira: IEE | Professor: Pedro Cabral
  *    Grupo nº8: Paulo Fernandes, Pedro Cunha
  */
-
-
 //bibliotecas e variaveis para o sensor de cor //////////////////////////////////
 
 #include <Wire.h>
@@ -26,18 +23,19 @@ DFRobot_TCS34725 tcs = DFRobot_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_
 
 //bibliotecas e variaveis para os motores stepper ///////////////////////////////
 #include <AFMotor.h>
-#define StepsPerRevolution1 2048 //revoluções por volta motor 1 (cima)
+#define StepsPerRevolution1 200 //revoluções por volta motor 1 (cima)
 #define StepsPerRevolution2 200 //revoluções por volta motor 2 (baixo)
-#define Motor1Speed 20  //RPM maximo do motor 1
-#define Motor2Speed 400 //RPM maximo do motor 2
+#define Motor1Speed 50  //RPM maximo do motor 1
+#define Motor2Speed 50 //RPM maximo do motor 2
 #define Motor1Angle 90  // amplitude que o motor de cima tem que rodar para pegar mais um M&M
-#define Motor2Freedom 260 //amplitude maxima que o motor2 pode rodar
+#define Motor2Freedom 150 //amplitude maxima que o motor2 pode rodar
 
-AF_Stepper motor1(StepsPerRevolution1,1); //inicialização motor 1
-AF_Stepper motor2(StepsPerRevolution2,2); //inicialização motor 2
+AF_Stepper motor1(StepsPerRevolution1,2); //inicialização motor 1
+AF_Stepper motor2(StepsPerRevolution2,1); //inicialização motor 2
 
-int last_pos = 0, next_pos;
-const int rotation_step = map(Motor1Angle,0,360,0,StepsPerRevolution1); 
+int last_pos = 1, next_pos;
+//const int rotation_step = map(Motor1Angle,0,360,0,StepsPerRevolution1);
+const int rotation_step = 25;
 const float  sector_amplitude = Motor2Freedom / 6;
 
 //bibliotecas e variaveis para os leds endereçaveis /////////////////////////////
@@ -60,24 +58,29 @@ struct color{
 };
 
 const color cor[7] = { //cores padrao para a comparacao
-  {255,255,255, "NOT"},
-  {255, 10, 10, 4, "RED"}, //cor 1
-  {255,130,  8, 6, "ORG"}, //cor 2
-  {255,243, 10, 5, "YEL"}, //cor 3
-  { 10,255,170, 2, "GRN"}, //cor 4
-  {  0,125,255, 3, "BLU"}, //cor 5
-  {255, 20, 20, 1, "BRW"}  //cor 6
+  {255,255,255, 0, "NOT"},
+  {255, 10, 10, 1, "RED"}, //cor 1
+  {255,130,  8, 2, "ORG"}, //cor 2
+  {255,243, 10, 3, "YEL"}, //cor 3
+  { 10,255,170, 4, "GRN"}, //cor 4
+  {  0,125,255, 5, "BLU"}, //cor 5
+  {255, 20, 20, 6, "BRW"}  //cor 6
   };
+
+int contador[7];
+
 //Controlo /////////////////////////////////////////////////////////////////////
 #define Button A1
 
 void setup() { /////////////////////////////////////////////////////////////////
-  
+  pinMode(Button, INPUT_PULLUP);
   Serial.begin(9600);
   Serial.println("Comunicacao Serie Inicializada!");
 
   motor1.setSpeed(Motor1Speed);
   motor2.setSpeed(Motor2Speed);
+
+  for(int i = 0; i < 7; ++i) contador[i] = 0;
 
   FastLED.addLeds<WS2812B, LedsPin, GRB>(leds, NumLeds); //inicialização da fita de leds
   FastLED.setBrightness(Brightness);
@@ -99,9 +102,9 @@ void loop() { /////////////////////////////////////////////////////////////////
   //opcao de parar o programa 
 
   if_pressed_stop();
-  
+  delay(2000);
   //ação do motor1
-  motor1.step(rotation_step, FORWARD, SINGLE);
+  motor1.step(rotation_step, FORWARD, MICROSTEP);
   
   //ação do sensor de cor
   tcs.getRGBC(&sensor_red, &sensor_green, &sensor_blue, &sensor_clear); //leitura da cor do sensor
@@ -141,7 +144,15 @@ void loop() { /////////////////////////////////////////////////////////////////
   Serial.print(b);
   Serial.print(") Nearest color is ");
   Serial.println(cor[nearest_color].name);
-
+  contador[nearest_color]++;
+  
+  for(int i = 0; i < 7; ++i){
+    Serial.print(cor[i].pos);
+    Serial.print(": ");
+    Serial.print(contador[i]);
+    Serial.print("   ");
+  }
+  
   //transmisao dos dados de cor para a fita de leds
 
   for(int i = 0; i < NumLeds; ++i){
@@ -150,9 +161,9 @@ void loop() { /////////////////////////////////////////////////////////////////
   FastLED.show();
 
   //ação do motor2
+  next_pos = cor[nearest_color].pos;
   align_motor2();
   
-  delay(100);
 }
 //funções necessarias //////////////////////////////////////////////////////////////////////////
 
@@ -177,8 +188,19 @@ float distance(int i){ // calcula a distancia da cor lida a cor indicada no argu
 void align_motor2(){ //alinha o tubo com o local correto
   int movement = abs(next_pos - last_pos);
   movement *= sector_amplitude;
-  if(next_pos > last_pos) motor2.step(movement, FORWARD, DOUBLE);
-  else                    motor2.step(movement, BACKWARD, DOUBLE);
+  Serial.print("movimento motor baixo:");
+  Serial.println(movement);
+  if(next_pos > last_pos) {
+    motor2.step(movement, FORWARD, MICROSTEP);
+    delay(100);
+  }
+  else {
+    Serial.print("MOV PARA TRAS");
+    Serial.println(movement);
+    motor2.step(movement, BACKWARD, MICROSTEP);
+    delay(100);
+  }
+  
   last_pos = next_pos;
 }
 
