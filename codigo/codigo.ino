@@ -13,7 +13,7 @@
 
 uint16_t sensor_clear, sensor_red, sensor_green, sensor_blue;
 
-/* Esquema de fios
+/* Esquema de fios do sensor
  *  VERMELHO 5V
  *  PRETO GND
  *  AZUL SCL ou A5
@@ -99,7 +99,7 @@ void setup() { /////////////////////////////////////////////////////////////////
     while(true); //se ocorrer um erro a encotrar o sensor o programa para a execução
   }
 
-  Serial.println("Tubo Seletor na Primeira posicao? Confirme...");
+  Serial.println("Tubo Seletor na Primeira posicao? Confirme..."); //Para que o programa saiba sempre em que posição se encontra o motor
   while(digitalRead(Button) == HIGH);
   Serial.println("Tudo Certo! Iniciando Programa!");
   while(digitalRead(Button) == LOW);
@@ -108,6 +108,7 @@ void setup() { /////////////////////////////////////////////////////////////////
 void loop() { /////////////////////////////////////////////////////////////////
   
   delay(2000);
+  
   //ação do motor1
   motor1.step(rotation_step, FORWARD, DOUBLE);
   
@@ -149,9 +150,10 @@ void loop() { /////////////////////////////////////////////////////////////////
   Serial.print(b);
   Serial.print(") Nearest color is ");
   Serial.println(cor[nearest_color].c);
+  
   contador[nearest_color]++;
   
-  for(int i = 1; i < 7; ++i){
+  for(int i = 1; i < 7; ++i){ //Imprime a contagem de MMs de cada cor que já passaram pelo contador a cada iteracao
     Serial.print(cor[i].c);
     Serial.print(": ");
     Serial.print(contador[i]);
@@ -168,46 +170,10 @@ void loop() { /////////////////////////////////////////////////////////////////
   //ação do motor2
   delay(500);
   next_pos = cor[nearest_color].pos;
-  int movement = abs(next_pos - last_pos);
-  movement *= sector_amplitude;
-  Serial.print("movimento motor baixo:");
-  Serial.println(movement);
-  if(next_pos > last_pos) {
-    motor2.step(movement, FORWARD, DOUBLE);
-    delay(100);
-  }
-  else {
-    motor2.step(movement, BACKWARD, DOUBLE);
-    delay(100);
-  }
-  
-  last_pos = next_pos;
+  move2();
 
   //opcao de parar o programa 
-  if(digitalRead(Button) == LOW){
-    Serial.println("Programa em Pausa! Para retomar clique novamente no botao!");
-    while(digitalRead(Button) == LOW) delay(100);
-
-    next_pos = 1;
-  int movement = abs(next_pos - last_pos);
-  movement *= sector_amplitude;
-  Serial.print("movimento motor baixo:");
-  Serial.println(movement);
-  if(next_pos > last_pos) {
-    motor2.step(movement, FORWARD, DOUBLE);
-    delay(100);
-  }
-  else {
-    motor2.step(movement, BACKWARD, DOUBLE);
-    delay(100);
-  }
-  
-  last_pos = next_pos;
-    
-    while(digitalRead(Button) == HIGH) delay(50);
-    Serial.println("Programa sera retomado! Por favor largue o botao.");
-    while(digitalRead(Button) == LOW) delay(100);
-  }
+  if_pause();
 }
 //funções necessarias //////////////////////////////////////////////////////////////////////////
 
@@ -227,4 +193,35 @@ int aprox_color(){ //devolve o numero da cor mais proxima a que foi lida no sens
 float distance(int i){ // calcula a distancia da cor lida a cor indicada no argumento
   float dist = sqrt(pow((r-cor[i].r),2) + pow((g-cor[i].g),2) + pow((b-cor[i].b),2));
   return dist;
+}
+
+void move2(){
+  int movement = abs(next_pos - last_pos);
+  movement *= sector_amplitude;
+  Serial.print("movimento motor baixo:");
+  Serial.println(movement);
+  if(next_pos > last_pos) {
+    motor2.step(movement, FORWARD, DOUBLE);
+    delay(100);
+  }
+  else {
+    motor2.step(movement, BACKWARD, DOUBLE);
+    delay(100);
+  }
+  
+  last_pos = next_pos;
+}
+
+void if_pause(){
+  if(digitalRead(Button) == LOW){
+    Serial.println("Programa em Pausa! Para retomar clique novamente no botao!");
+    while(digitalRead(Button) == LOW) delay(50);
+
+    next_pos = 1;
+    move2();
+    
+    while(digitalRead(Button) == HIGH) delay(50);
+    Serial.println("Programa sera retomado! Por favor largue o botao.");
+    while(digitalRead(Button) == LOW) delay(100);
+  }
 }
