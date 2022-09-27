@@ -29,10 +29,10 @@ DFRobot_TCS34725 tcs = DFRobot_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_
 #define Motor1Speed 50          //RPM maximo do motor 1
 #define Motor2Speed 50          //RPM maximo do motor 2
 #define Motor1Angle 45          //amplitude que o motor de cima tem que rodar para pegar mais um M&M
-#define Motor2Freedom 280       //amplitude maxima que o motor2 pode rodar
+#define Motor2Freedom 300       //amplitude maxima que o motor2 pode rodar
 
-AF_Stepper motor1(StepsPerRevolution1,1); //inicialização motor 1
-AF_Stepper motor2(StepsPerRevolution2,2); //inicialização motor 2
+AF_Stepper motor1(StepsPerRevolution1,2); //inicialização motor 1
+AF_Stepper motor2(StepsPerRevolution2,1); //inicialização motor 2
 
 int last_pos = 1, next_pos;
 const int rotation_step = map(Motor1Angle,0,360,0,StepsPerRevolution1);
@@ -46,6 +46,9 @@ const float  sector_amplitude = map(Motor2Freedom, 0, 360, 0, StepsPerRevolution
 #define Brightness 255 //brilho dos leds 0 - 255
 
 CRGB leds[NumLeds];
+CRGBPalette16 Palette = RainbowColors_p;
+//CRGBPalette16 Palette; //palete de cores para quando o programa está em pausa
+byte StartIndex = 0;
 
 //Processamento dos dados //////////////////////////////////////////////////////
 byte r,g,b, max_color, min_color, nearest_color; //processamento das cores para ficarem mais vivas
@@ -91,7 +94,11 @@ void setup() { /////////////////////////////////////////////////////////////////
 
   FastLED.addLeds<WS2812B, LedsPin, GRB>(leds, NumLeds); //inicialização da fita de leds
   FastLED.setBrightness(Brightness);
-
+  /*Palette[0] = CRGB::White;
+  Palette[1] = CRGB::White;
+  Palette[2] = CRGB::White;
+  Palette[3] = CRGB::White;
+*/
   if(tcs.begin()){ //tentar encontrar o sensor de cor no I2C
     Serial.println("Sensor de Cor encontrado!");
   } else {
@@ -100,18 +107,20 @@ void setup() { /////////////////////////////////////////////////////////////////
   }
 
   Serial.println("Tubo Seletor na Primeira posicao? Confirme..."); //Para que o programa saiba sempre em que posição se encontra o motor
-  while(digitalRead(Button) == HIGH);
+  while(digitalRead(Button) == HIGH){
+    leds_pause(StartIndex);
+    StartIndex += 1;
+    delay(10);
+  }
   Serial.println("Tudo Certo! Iniciando Programa!");
   while(digitalRead(Button) == LOW);
 }
 
 void loop() { /////////////////////////////////////////////////////////////////
   
-  delay(2000);
-  
   //ação do motor1
-  motor1.step(rotation_step, FORWARD, DOUBLE);
-  
+  motor1.step(rotation_step, BACKWARD, DOUBLE);
+  delay(500);
   //ação do sensor de cor
   tcs.getRGBC(&sensor_red, &sensor_green, &sensor_blue, &sensor_clear); //leitura da cor do sensor
   tcs.lock();
@@ -120,13 +129,13 @@ void loop() { /////////////////////////////////////////////////////////////////
   g = sensor_green * 255.0/sensor_clear; //Calculo dos Valores G na gama 0-255
   b = sensor_blue  * 255.0/sensor_clear; //Calculo dos Valores B na gama 0-255
 
-  Serial.print("Debug: ("); 
+  Serial.print("Original: ("); 
   Serial.print(r);
   Serial.print(';');
   Serial.print(g);
   Serial.print(';');
   Serial.print(b);
-  Serial.print(") ->");
+  Serial.print(") -> Processado: (");
 
   // processamento dos valores para obter cores mais vivas
   max_color = max(max(r,g),b);
@@ -142,7 +151,6 @@ void loop() { /////////////////////////////////////////////////////////////////
 
   nearest_color = aprox_color(); //chama a funcao
   
-  Serial.print(" ("); 
   Serial.print(r);
   Serial.print(';');
   Serial.print(g);
@@ -151,7 +159,7 @@ void loop() { /////////////////////////////////////////////////////////////////
   Serial.print(") Nearest color is ");
   Serial.println(cor[nearest_color].c);
   
-  contador[nearest_color]++;
+  contador[nearest_color]++; //incrementa o contador de mm's
   
   for(int i = 1; i < 7; ++i){ //Imprime a contagem de MMs de cada cor que já passaram pelo contador a cada iteracao
     Serial.print(cor[i].c);
@@ -172,8 +180,11 @@ void loop() { /////////////////////////////////////////////////////////////////
   next_pos = cor[nearest_color].pos;
   move2();
 
+  delay(2000);
   //opcao de parar o programa 
   if_pause();
+
+  
 }
 //funções necessarias //////////////////////////////////////////////////////////////////////////
 
@@ -215,13 +226,27 @@ void move2(){
 void if_pause(){
   if(digitalRead(Button) == LOW){
     Serial.println("Programa em Pausa! Para retomar clique novamente no botao!");
-    while(digitalRead(Button) == LOW) delay(50);
 
     next_pos = 1;
     move2();
-    
-    while(digitalRead(Button) == HIGH) delay(50);
+    while(digitalRead(Button) == LOW);
+    while(true){
+      leds_pause(StartIndex);
+      StartIndex += 1;
+      delay(10);
+      if(digitalRead(Button) == LOW) break;
+    }
     Serial.println("Programa sera retomado! Por favor largue o botao.");
     while(digitalRead(Button) == LOW) delay(100);
   }
+}
+
+void leds_pause(byte f_index){
+  int colorIndex = f_index;
+  for( int i = 0; i < NumLeds; ++i) {
+     leds[i] = ColorFromPalette(Palette, colorIndex, Brightness, LINEARBLEND);
+     colorIndex += 3;
+  }
+  FastLED.show();
+  
 }
